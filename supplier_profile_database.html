@@ -1,0 +1,1146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Supplier Profile Database</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#f4f6f9;color:#172033}
+header{background:#172033;color:#fff;padding:16px 22px;position:sticky;top:0;z-index:5}
+.brand{font-size:20px;font-weight:700}.nav{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}
+button{border:0;border-radius:8px;padding:9px 13px;cursor:pointer}
+.danger{background:#d92d20;color:#fff}.secondary{background:#eef2f7;color:#172033}
+.supplier-card{border:1px solid #dfe5ee;border-radius:10px;padding:14px;margin:12px 0;background:#fafbfc}
+.profile-head{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}
+.file-list{font-size:12px;color:#5b6472;margin-top:6px}
+.nav button{background:#2d3b54;color:#fff}.primary{background:#1769e0;color:#fff}
+main{max-width:1150px;margin:22px auto;padding:0 16px}.page{display:none}.page.active{display:block}
+.card{background:#fff;border:1px solid #e0e5ec;border-radius:12px;padding:18px;margin-bottom:16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:13px}
+label{display:block;font-size:12px;font-weight:700;margin-bottom:5px}input,select,textarea{width:100%;padding:10px;border:1px solid #ccd3dd;border-radius:7px;background:#fff}textarea{min-height:80px}
+.stat{font-size:27px;font-weight:700}.muted{color:#687386;font-size:13px}.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.list{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}.item{border:1px solid #e1e6ed;border-radius:10px;padding:14px;background:#fff}
+.pill{display:inline-block;padding:4px 8px;border-radius:20px;background:#edf3ff;color:#1758b5;font-size:12px;margin:2px}
+.photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}.photo-grid img{width:100%;height:110px;object-fit:cover;border-radius:7px;border:1px solid #ddd}
+table{width:100%;border-collapse:collapse}th,td{padding:9px;border-bottom:1px solid #e5e9ef;text-align:left;font-size:13px}
+h2,h3{margin-top:0}.danger{background:#fce8e8;color:#a22}
+</style>
+</head>
+<body>
+<header>
+<div class="brand">Supplier Profile Database</div>
+<div class="nav">
+<button onclick="page('dashboard')">Dashboard</button>
+<button onclick="page('categories')">Categories</button>
+<button onclick="page('products')">Products</button>
+<button onclick="page('ai-review')">🤖 AI Review</button>
+<button onclick="page('import')">Brochure Import</button>
+<button onclick="page('suppliers')">Suppliers</button>
+<button onclick="page('visits')">Factory Visits</button>
+<button onclick="page('shortlisted')">Shortlisted</button>
+<button class="primary" onclick="page('add')">＋ Add Product</button>
+</div>
+</header>
+
+<main>
+<section id="dashboard" class="page active">
+<div class="card"><h2>Dashboard</h2>
+<div class="grid">
+<div class="card"><div class="stat" id="nProducts">0</div><div class="muted">Products</div></div>
+<div class="card"><div class="stat" id="nSuppliers">0</div><div class="muted">Suppliers</div></div>
+<div class="card"><div class="stat" id="nCategories">0</div><div class="muted">Categories</div></div>
+<div class="card"><div class="stat" id="nVisits">0</div><div class="muted">Factory Visits</div></div>
+</div></div>
+<div class="card"><h3>Database structure</h3><b>Category → Product ↔ Suppliers → Supplier-specific commercial/visit data</b>
+<p class="muted">One supplier can supply many products, and one product can have many suppliers. A supplier is stored once and linked to products.</p></div>
+</section>
+
+<section id="categories" class="page">
+<div class="card"><h2>Categories</h2><div id="catList" class="list"></div></div>
+</section>
+
+<section id="products" class="page">
+<div class="card"><div class="row"><h2 style="margin-right:auto">Products</h2><input id="search" placeholder="Search product..." oninput="renderProducts()" style="max-width:260px"></div>
+<div id="productList" class="list"></div></div>
+</section>
+
+
+<section id="product-profile" class="page">
+<div class="card">
+  <div class="row">
+    <div style="margin-right:auto">
+      <h2 id="profileTitle">Product Profile</h2>
+      <div id="profileSub" class="muted"></div>
+    </div>
+    <button onclick="page('products')">← Back</button>
+    <button type="button" class="danger" onclick="deleteCurrentProduct()">Delete Product</button>
+    <button class="primary" onclick="saveEditedProduct()">Save Changes</button>
+  </div>
+</div>
+
+<div class="card">
+<h3>Product Information</h3>
+<div class="grid">
+<div><label>Category *</label><input id="ep_category" list="ep_cats"></div>
+<datalist id="ep_cats"><option>Aluminium Machinery</option><option>Textile Machinery</option><option>Textile Materials</option><option>Bakery Machinery</option><option>Packaging Machinery</option><option>Electrical & Electronics</option><option>Other</option></datalist>
+<div><label>Product Name *</label><input id="ep_product"></div>
+<div><label>Brand / Model</label><input id="ep_model"></div>
+<div><label>Specification / Version</label><input id="ep_spec"></div>
+</div>
+
+<h3>Technical Data</h3>
+<div class="grid">
+<div><label>Dimensions</label><input id="ep_dimensions"></div>
+<div><label>Weight</label><input id="ep_weight"></div>
+<div><label>Capacity</label><input id="ep_capacity"></div>
+<div><label>Power</label><input id="ep_power"></div>
+<div><label>Speed</label><input id="ep_speed"></div>
+<div><label>Material</label><input id="ep_material"></div>
+<div style="grid-column:1/-1"><label>Other Technical Data</label><textarea id="ep_technical"></textarea></div>
+</div>
+</div>
+
+<div class="card">
+<h3>Photos & Documents</h3>
+<div class="grid">
+<div><label>Add More Product Photos</label><input id="ep_photos" type="file" accept="image/*" multiple></div>
+<div><label>Add Brochure / Quotation / Documents</label><input id="ep_docs" type="file" accept=".pdf,.jpg,.jpeg,.png,.xlsx,.docx" multiple></div>
+</div>
+<div id="savedFiles" class="muted" style="margin-top:12px"></div>
+<div id="savedPhotoGrid" class="photo-grid" style="margin-top:12px"></div>
+</div>
+
+<div class="card">
+<div class="row">
+<h3 style="margin-right:auto">Suppliers / Factories for This Product</h3>
+<button type="button" onclick="createSupplierAndLink()">＋ New Supplier</button>
+<button class="primary" type="button" onclick="addSupplierEditor()">＋ Link Supplier</button>
+</div>
+<div id="supplierEditors"></div>
+</div>
+
+<div class="card">
+<h3>Product Status & Visit</h3>
+<div class="grid">
+<div><label>India Market</label><select id="ep_india"><option>Yes</option><option>No</option></select></div>
+<div><label>Private Label</label><select id="ep_privateLabel"><option>Yes</option><option>No</option></select></div>
+<div><label>Sample</label><select id="ep_sample"><option>Yes</option><option>No</option></select></div>
+<div><label>Lead Time</label><input id="ep_lead"></div>
+<div><label>Payment</label><input id="ep_payment"></div>
+<div><label>Factory Visit</label><select id="ep_visited"><option>No</option><option>Yes</option></select></div>
+<div style="grid-column:1/-1"><label>Notes</label><textarea id="ep_notes"></textarea></div>
+</div>
+</div>
+
+<div class="row" style="justify-content:flex-end;margin-bottom:30px">
+<button onclick="page('products')">Cancel</button>
+<button type="button" class="danger" onclick="deleteCurrentProduct()">Delete Product</button>
+<button class="primary" onclick="saveEditedProduct()">Save Changes</button>
+</div>
+</section>
+
+<section id="import" class="page">
+<div class="card">
+  <div class="row">
+    <div style="margin-right:auto">
+      <h2>Brochure Import</h2>
+      <p class="muted">Upload a supplier brochure/catalogue. The browser will extract text and detect likely product records for review before adding them.</p>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div>
+      <label>Brochure / Catalogue</label>
+      <input id="brochureFile" type="file" accept=".pdf,.txt,.jpg,.jpeg,.png" />
+    </div>
+    <div>
+      <label>Default Category</label>
+      <input id="brochureCategory" list="ep_cats" placeholder="e.g. Textile Machinery">
+    </div>
+  </div>
+
+  <div class="row" style="margin-top:14px">
+    <button class="primary" type="button" onclick="analyzeBrochure()">Analyze Brochure</button>
+    <button type="button" onclick="clearBrochureImport()">Clear</button>
+  </div>
+
+  <div id="importStatus" class="muted" style="margin-top:12px"></div>
+</div>
+
+<div class="card" id="importReviewCard" style="display:none">
+  <div class="row">
+    <h3 style="margin-right:auto">Detected Products</h3>
+    <span id="detectedCount" class="pill"></span>
+  </div>
+  <p class="muted">Review the detected records. Select the products you want to import.</p>
+  <div id="detectedProducts"></div>
+  <div class="row" style="justify-content:flex-end;margin-top:14px">
+    <button class="primary" type="button" onclick="importDetectedProducts()">＋ Add Selected Products</button>
+  </div>
+</div>
+
+<div class="card" id="brochureTextCard" style="display:none">
+  <h3>Extracted Brochure Text</h3>
+  <textarea id="brochureText" rows="12" style="font-family:monospace"></textarea>
+</div>
+</section>
+
+<section id="ai-review" class="page">
+<div class="card">
+  <div class="row">
+    <div style="margin-right:auto">
+      <h2>🤖 AI Brochure Review</h2>
+      <p class="muted">Upload a catalogue and/or paste a supplier website. AI will identify products, separate models/specifications, suggest categories, extract technical data, and prepare records for your database.</p>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div>
+      <label>Brochure / Catalogue (optional)</label>
+      <input id="aiBrochureFile" type="file" accept=".pdf,.jpg,.jpeg,.png,.txt" />
+    </div>
+    <div>
+      <label>Supplier Website Link (optional)</label>
+      <input id="aiWebsiteUrl" type="url" placeholder="https://www.example.com" />
+    </div>
+    <div>
+      <label>Category Hint (optional)</label>
+      <input id="aiCategoryHint" placeholder="e.g. Embroidery Machinery">
+    </div>
+    <div>
+      <label>Supplier / Factory Name (optional)</label>
+      <input id="aiSupplierHint" placeholder="e.g. ABC Textile Machinery Co., Ltd.">
+    </div>
+  </div>
+
+  <div class="row" style="margin-top:14px">
+    <button class="primary" type="button" onclick="aiReviewBrochure()">🤖 Review with AI</button>
+    <button type="button" onclick="clearAIReview()">Clear</button>
+  </div>
+  <div id="aiStatus" class="muted" style="margin-top:12px"></div>
+</div>
+
+<div class="card" id="aiSummaryCard" style="display:none">
+  <h3>AI Review Summary</h3>
+  <div id="aiSummary"></div>
+</div>
+
+<div class="card" id="aiProductsCard" style="display:none">
+  <div class="row">
+    <h3 style="margin-right:auto">AI Detected Products</h3>
+    <span id="aiProductCount" class="pill"></span>
+  </div>
+  <p class="muted">Every row is a possible database product. Review the fields before importing. Different material/model/specification should stay as separate records.</p>
+  <div id="aiProducts"></div>
+  <div class="row" style="justify-content:flex-end;margin-top:14px">
+    <button class="primary" type="button" onclick="importAIProducts()">＋ Add Selected to Database</button>
+  </div>
+</div>
+
+<div class="card" id="aiCategoryCard" style="display:none">
+  <h3>Suggested Category Structure</h3>
+  <div id="aiCategories"></div>
+</div>
+
+<div class="card" id="aiFactoryCard" style="display:none">
+  <h3>Manufacturer / Supplier Information Found</h3>
+  <div id="aiFactoryInfo"></div>
+</div>
+</section>
+<section id="suppliers" class="page">
+<div class="card"><h2>Suppliers</h2><p class="muted">Suppliers are reusable master records. A supplier can be linked to many products, and each product can be linked to many suppliers.</p><div id="supplierTable"></div></div>
+</section>
+
+<section id="visits" class="page"><div class="card"><h2>Factory Visits</h2><div id="visitList"><p class="muted">No factory visits recorded yet.</p></div></div></section>
+<section id="shortlisted" class="page"><div class="card"><h2>Shortlisted</h2><div id="shortList"><p class="muted">No products shortlisted yet.</p></div></div></section>
+
+<section id="add" class="page">
+<div class="card">
+<h2>Add Product</h2>
+<p class="muted">This is a PRODUCT-WISE form. Supplier details are added for this product, not as a separate data-entry form.</p>
+<div class="grid">
+<div><label>Category *</label><input id="category" list="cats" placeholder="e.g. Aluminium Machinery"><datalist id="cats"><option>Aluminium Machinery</option><option>Textile Machinery</option><option>Textile Materials</option><option>Bakery Machinery</option><option>Packaging Machinery</option><option>Electrical & Electronics</option><option>Other</option></datalist></div>
+<div><label>Product Name *</label><input id="product" placeholder="e.g. Aluminium Extrusion Press 1600T"></div>
+<div><label>Brand / Model</label><input id="model"></div>
+<div><label>Specification / Version</label><input id="spec" placeholder="Important if different spec = separate product"></div>
+</div>
+
+<h3>Technical Data</h3>
+<div class="grid">
+<div><label>Dimensions</label><input id="dimensions"></div>
+<div><label>Weight</label><input id="weight"></div>
+<div><label>Capacity</label><input id="capacity"></div>
+<div><label>Power</label><input id="power"></div>
+<div><label>Speed</label><input id="speed"></div>
+<div><label>Material</label><input id="material"></div>
+<div><label>Other Technical Data</label><textarea id="technical"></textarea></div>
+</div>
+
+<h3>Photos & Documents <span class="muted">(optional)</span></h3>
+<div class="grid">
+<div><label>Product Photos — multiple allowed</label><input id="photos" type="file" accept="image/*" multiple></div>
+<div><label>Brochure / Quotation</label><input id="docs" type="file" accept=".pdf,.jpg,.jpeg,.png,.xlsx,.docx" multiple></div>
+</div>
+
+<h3>Supplier for This Product</h3>
+<div class="grid">
+<div><label>Factory</label><input id="factory"></div>
+<div><label>Location</label><input id="location"></div>
+<div><label>Contact</label><input id="contact" placeholder="WeChat / Phone / Email"></div>
+<div><label>MOQ</label><input id="moq"></div>
+<div><label>Price</label><input id="price"></div>
+<div><label>Capacity</label><input id="supplierCapacity"></div>
+<div><label>Certification</label><input id="certification"></div>
+<div><label>India Market</label><select id="india"><option>Yes</option><option>No</option></select></div>
+<div><label>Private Label</label><select id="privateLabel"><option>Yes</option><option>No</option></select></div>
+<div><label>Sample</label><select id="sample"><option>Yes</option><option>No</option></select></div>
+<div><label>Lead Time</label><input id="lead"></div>
+<div><label>Payment</label><input id="payment"></div>
+<div><label>Factory Visit</label><select id="visited"><option>No</option><option>Yes</option></select></div>
+<div><label>Notes</label><textarea id="notes"></textarea></div>
+</div>
+<br>
+<div class="row"><button class="primary" onclick="saveProduct()">Save Product</button><button onclick="page('products')">Cancel</button></div>
+</div>
+</section>
+</main>
+
+<script>
+const KEY='spd_products_v1';
+const SUPPLIER_KEY='spd_suppliers_v1';
+let currentProductId=null;
+let editingSuppliers=[];
+
+function data(){return JSON.parse(localStorage.getItem(KEY)||'[]')}
+function getSuppliers(){return JSON.parse(localStorage.getItem(SUPPLIER_KEY)||'[]')}
+function saveSuppliers(x){localStorage.setItem(SUPPLIER_KEY,JSON.stringify(x))}
+function productsOnly(d){return Array.isArray(d)?d.filter(x=>x && x.id && x.product):[]}
+function saveData(x){localStorage.setItem(KEY,JSON.stringify(x))}
+function page(id){
+ document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
+ const el=document.getElementById(id);
+ if(el)el.classList.add('active');
+ refresh();
+}
+function val(id){const e=document.getElementById(id);return e?e.value.trim():''}
+function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+
+function saveProduct(){
+ if(!val('category')||!val('product')){alert('Category and Product Name are required.');return}
+ const d=data();
+ const rec={
+  id:Date.now(),category:val('category'),product:val('product'),model:val('model'),spec:val('spec'),
+  dimensions:val('dimensions'),weight:val('weight'),capacity:val('capacity'),power:val('power'),speed:val('speed'),material:val('material'),technical:val('technical'),
+  factory:val('factory'),location:val('location'),contact:val('contact'),moq:val('moq'),price:val('price'),supplierCapacity:val('supplierCapacity'),certification:val('certification'),
+  india:val('india'),privateLabel:val('privateLabel'),sample:val('sample'),lead:val('lead'),payment:val('payment'),visited:val('visited'),notes:val('notes'),
+  photoNames:[...document.getElementById('photos').files].map(f=>f.name),
+  docNames:[...document.getElementById('docs').files].map(f=>f.name),
+  suppliers:[{factory:val('factory'),location:val('location'),contact:val('contact'),moq:val('moq'),price:val('price'),capacity:val('supplierCapacity'),certification:val('certification')}]
+ };
+ d.push(rec);saveData(d);
+ alert('Product saved.');
+ document.querySelectorAll('#add input,#add textarea').forEach(e=>{if(e.type!=='file')e.value=''});
+ page('products');
+}
+
+function renderProducts(){
+ const q=(document.getElementById('search')?.value||'').toLowerCase();
+ const rows=data().filter(x=>(x.product+' '+x.category+' '+x.model+' '+x.spec).toLowerCase().includes(q));
+ document.getElementById('productList').innerHTML=rows.length?rows.map(x=>{
+   const sc=Array.isArray(x.suppliers)?x.suppliers.length:(x.factory?1:0);
+   return `<div class="item">
+    <span class="pill">${esc(x.category)}</span>
+    <h3>${esc(x.product)}</h3>
+    <div class="muted">${esc(x.model||'')} ${x.spec?'· '+esc(x.spec):''}</div>
+    <p>${x.factory?'<b>Factory:</b> '+esc(x.factory):''}${sc>1?' · <b>'+sc+' suppliers</b>':''}</p>
+    <button class="primary" onclick="viewProduct(${x.id})">Open / Edit</button>
+    <button type="button" class="danger" onclick="event.stopPropagation();deleteProduct('${x.id}')">Delete</button>
+   </div>`
+ }).join(''):'<p class="muted">No products yet. Use ＋ Add Product.</p>';
+}
+
+function deleteProduct(id){
+ const d=data();
+ const x=d.find(a=>String(a.id)===String(id));
+ if(!x){ alert('Product not found.'); return; }
+
+ const ok=window.confirm('Delete "'+(x.product||'this product')+'"? This will remove the product and all supplier records stored under it.');
+ if(!ok)return;
+
+ const remaining=d.filter(a=>String(a.id)!==String(id));
+ saveData(remaining);
+ currentProductId=null;
+
+ // Immediately redraw the product list and dashboard.
+ renderProducts();
+ refresh();
+ page('products');
+ alert('Product deleted successfully.');
+}
+
+function deleteCurrentProduct(){
+ if(currentProductId===null || currentProductId===undefined){
+   alert('No product is currently open.');
+   return;
+ }
+ deleteProduct(currentProductId);
+}
+
+function viewProduct(id){
+ const x=data().find(a=>a.id===id);
+ if(!x)return;
+ currentProductId=id;
+ document.getElementById('profileTitle').textContent=x.product||'Product Profile';
+ document.getElementById('profileSub').textContent=(x.category||'')+' • Edit product, technical data and suppliers';
+ fillProfile(x);
+ page('product-profile');
+}
+
+function setVal(id,v){const e=document.getElementById(id);if(e)e.value=v??''}
+
+function fillProfile(x){
+ const d=ensureNormalized(); x=d.find(a=>a.id===x.id)||x;
+ setVal('ep_category',x.category);setVal('ep_product',x.product);setVal('ep_model',x.model);setVal('ep_spec',x.spec);
+ setVal('ep_dimensions',x.dimensions);setVal('ep_weight',x.weight);setVal('ep_capacity',x.capacity);
+ setVal('ep_power',x.power);setVal('ep_speed',x.speed);setVal('ep_material',x.material);setVal('ep_technical',x.technical);
+ setVal('ep_india',x.india||'No');setVal('ep_privateLabel',x.privateLabel||'No');setVal('ep_sample',x.sample||'No');
+ setVal('ep_lead',x.lead);setVal('ep_payment',x.payment);setVal('ep_visited',x.visited||'No');setVal('ep_notes',x.notes);
+
+ editingSuppliers=Array.isArray(x.suppliers)?JSON.parse(JSON.stringify(x.suppliers)):[];
+ const supplierList=getSuppliers()||[];
+
+ // Backward compatibility: convert an older supplier object embedded in the product.
+ if(editingSuppliers.length && editingSuppliers[0] && !editingSuppliers[0].supplierId && editingSuppliers[0].factory){
+   editingSuppliers=editingSuppliers.map(sp=>{
+     let su=supplierList.find(v=>
+       (v.name||'').trim().toLowerCase()===(sp.factory||'').trim().toLowerCase() &&
+       (v.location||'').trim().toLowerCase()===(sp.location||'').trim().toLowerCase()
+     );
+     if(!su){
+       su={id:'S'+Date.now()+Math.floor(Math.random()*1000000),name:sp.factory||'',location:sp.location||'',contact:sp.contact||'',website:'',certification:sp.certification||'',notes:''};
+       supplierList.push(su);
+     }
+     return {supplierId:su.id,moq:sp.moq||'',price:sp.price||'',capacity:sp.capacity||'',certification:sp.certification||'',lead:x.lead||'',payment:x.payment||'',sample:x.sample||'No',privateLabel:x.privateLabel||'No',india:x.india||'No',visited:x.visited||'No',notes:x.notes||''};
+   });
+   saveSuppliers(supplierList);
+ }
+ if(!editingSuppliers.length && x.factory){
+   let su=supplierList.find(v=>(v.name||'').trim().toLowerCase()===(x.factory||'').trim().toLowerCase());
+   if(su)editingSuppliers=[{supplierId:su.id,moq:x.moq||'',price:x.price||'',capacity:x.supplierCapacity||'',certification:x.certification||'',lead:x.lead||'',payment:x.payment||'',sample:x.sample||'No',privateLabel:x.privateLabel||'No',india:x.india||'No',visited:x.visited||'No',notes:x.notes||''}];
+ }
+ renderSupplierEditors();
+ renderSavedFiles(x);
+}
+
+function renderSupplierEditors(){
+ const box=document.getElementById('supplierEditors');
+ const d=data();
+ const suppliers=getSuppliers()||[];
+ if(!editingSuppliers.length){
+  box.innerHTML='<p class="muted">No supplier linked yet. Click ＋ Add Supplier to link or create one.</p>';return;
+ }
+ box.innerHTML=editingSuppliers.map((sp,i)=>{
+  const master=suppliers.find(v=>v.id===sp.supplierId)||{};
+  return `
+  <div class="card" style="background:#fafbfc;border:1px solid #dfe5ee">
+   <div class="row"><b style="margin-right:auto">Supplier ${i+1}: ${esc(master.name||sp.factory||'')}</b><button class="danger" type="button" onclick="removeSupplierEditor(${i})">Remove Link</button></div>
+   <div class="grid" style="margin-top:12px">
+    <div><label>Supplier</label>
+      <select onchange="changeSupplierLink(${i},this.value)">
+       <option value="">Select supplier</option>
+       ${suppliers.map(v=>`<option value="${v.id}" ${String(v.id)===String(sp.supplierId)?'selected':''}>${esc(v.name)} — ${esc(v.location||'')}</option>`).join('')}
+      </select>
+    </div>
+    <div><label>MOQ</label><input value="${esc(sp.moq)}" oninput="supplierField(${i},'moq',this.value)"></div>
+    <div><label>Price</label><input value="${esc(sp.price)}" oninput="supplierField(${i},'price',this.value)"></div>
+    <div><label>Capacity</label><input value="${esc(sp.capacity)}" oninput="supplierField(${i},'capacity',this.value)"></div>
+    <div><label>Certification for this product</label><input value="${esc(sp.certification||master.certification||'')}" oninput="supplierField(${i},'certification',this.value)"></div>
+    <div><label>Lead Time</label><input value="${esc(sp.lead)}" oninput="supplierField(${i},'lead',this.value)"></div>
+    <div><label>Payment</label><input value="${esc(sp.payment)}" oninput="supplierField(${i},'payment',this.value)"></div>
+    <div><label>Sample</label><select onchange="supplierField(${i},'sample',this.value)"><option ${sp.sample==='Yes'?'selected':''}>Yes</option><option ${sp.sample!=='Yes'?'selected':''}>No</option></select></div>
+    <div><label>Private Label</label><select onchange="supplierField(${i},'privateLabel',this.value)"><option ${sp.privateLabel==='Yes'?'selected':''}>Yes</option><option ${sp.privateLabel!=='Yes'?'selected':''}>No</option></select></div>
+    <div><label>India Market</label><select onchange="supplierField(${i},'india',this.value)"><option ${sp.india==='Yes'?'selected':''}>Yes</option><option ${sp.india!=='Yes'?'selected':''}>No</option></select></div>
+    <div><label>Factory Visit</label><select onchange="supplierField(${i},'visited',this.value)"><option ${sp.visited==='Yes'?'selected':''}>Yes</option><option ${sp.visited!=='Yes'?'selected':''}>No</option></select></div>
+    <div style="grid-column:1/-1"><label>Supplier-specific Notes</label><textarea oninput="supplierField(${i},'notes',this.value)" rows="2">${esc(sp.notes)}</textarea></div>
+   </div>
+   ${master.id?`<div class="muted" style="margin-top:8px">Master contact: ${esc(master.contact||'—')} · ${esc(master.location||'—')}</div>`:''}
+  </div>`;
+ }).join('');
+}
+function supplierField(i,k,v){if(editingSuppliers[i])editingSuppliers[i][k]=v}
+function ensureNormalized(){
+ const d=data();
+ const suppliers=getSuppliers()||[];
+ let changed=false;
+
+ d.forEach(x=>{
+   if(!x || !x.product)return;
+   let links=Array.isArray(x.suppliers)?x.suppliers:[];
+   const hasOldObjects=links.some(sp=>sp && !sp.supplierId && sp.factory);
+
+   if(hasOldObjects){
+     links=links.map(sp=>{
+       if(sp.supplierId)return sp;
+       const key=(sp.factory||'').trim().toLowerCase()+'|'+(sp.location||'').trim().toLowerCase()+'|'+(sp.contact||'').trim().toLowerCase();
+       let su=suppliers.find(v=>
+         ((v.name||'').trim().toLowerCase()+'|'+(v.location||'').trim().toLowerCase()+'|'+(v.contact||'').trim().toLowerCase())===key
+       );
+       if(!su){
+         su={id:'S'+Date.now()+Math.floor(Math.random()*1000000),name:sp.factory||'',location:sp.location||'',contact:sp.contact||'',website:'',certification:sp.certification||'',notes:''};
+         suppliers.push(su);
+       }
+       return {
+         supplierId:su.id,moq:sp.moq||'',price:sp.price||'',capacity:sp.capacity||'',
+         certification:sp.certification||su.certification||'',lead:x.lead||'',payment:x.payment||'',
+         sample:x.sample||'No',privateLabel:x.privateLabel||'No',india:x.india||'No',
+         visited:x.visited||'No',notes:x.notes||''
+       };
+     });
+     x.suppliers=links;
+     changed=true;
+   }
+
+   if(!Array.isArray(x.suppliers))x.suppliers=[];
+   if(x.factory && !x.suppliers.length){
+     let su=suppliers.find(v=>(v.name||'').trim().toLowerCase()===(x.factory||'').trim().toLowerCase());
+     if(!su){
+       su={id:'S'+Date.now()+Math.floor(Math.random()*1000000),name:x.factory||'',location:x.location||'',contact:x.contact||'',website:'',certification:x.certification||'',notes:''};
+       suppliers.push(su);
+     }
+     x.suppliers=[{
+       supplierId:su.id,moq:x.moq||'',price:x.price||'',capacity:x.supplierCapacity||'',
+       certification:x.certification||su.certification||'',lead:x.lead||'',payment:x.payment||'',
+       sample:x.sample||'No',privateLabel:x.privateLabel||'No',india:x.india||'No',
+       visited:x.visited||'No',notes:x.notes||''
+     }];
+     changed=true;
+   }
+ });
+ if(changed){saveSuppliers(suppliers);saveData(d)}
+ return d;
+}
+function addSupplierEditor(){
+ const d=ensureNormalized();
+ const supplierList=getSuppliers()||[];
+ if(!supplierList.length){
+   createSupplierAndLink();
+   return;
+ }
+ editingSuppliers.push({
+   supplierId:supplierList[0].id,moq:'',price:'',capacity:'',certification:'',
+   lead:'',payment:'',sample:'No',privateLabel:'No',india:'No',visited:'No',notes:''
+ });
+ renderSupplierEditors();
+}
+
+function createSupplierAndLink(){
+ const d=ensureNormalized();
+ const supplierList=getSuppliers()||[];
+ const name=prompt('Factory / Supplier name:');
+ if(!name || !name.trim())return;
+ const su={
+   id:'S'+Date.now()+Math.floor(Math.random()*1000000),
+   name:name.trim(),
+   location:(prompt('Location (optional):')||'').trim(),
+   contact:(prompt('WeChat / Phone / Email (optional):')||'').trim(),
+   website:'',certification:'',notes:''
+ };
+ supplierList.push(su);
+ saveSuppliers(supplierList);
+ editingSuppliers.push({
+   supplierId:su.id,moq:'',price:'',capacity:'',certification:'',
+   lead:'',payment:'',sample:'No',privateLabel:'No',india:'No',visited:'No',notes:''
+ });
+ renderSupplierEditors();
+}
+function changeSupplierLink(i,id){
+ if(!editingSuppliers[i])return;
+ editingSuppliers[i].supplierId=id;
+ renderSupplierEditors();
+}
+
+function removeSupplierEditor(i){
+ if(!confirm('Remove this supplier from this product? The supplier master will remain available for other products.'))return;
+ editingSuppliers.splice(i,1);renderSupplierEditors();
+}
+
+let editingSupplierMasterId=null;
+
+function openAddSupplier(){
+ editingSupplierMasterId=null;
+ document.getElementById('supplierEditorTitle').textContent='Add Supplier';
+ ['sm_name','sm_location','sm_contact','sm_website','sm_certification','sm_notes'].forEach(id=>setVal(id,''));
+ document.getElementById('supplierEditorCard').style.display='block';
+}
+
+function editSupplierMaster(id){
+ const d=ensureNormalized(),s=(getSuppliers()||[]).find(v=>String(v.id)===String(id));
+ if(!s)return;
+ editingSupplierMasterId=id;
+ document.getElementById('supplierEditorTitle').textContent='Edit Supplier';
+ setVal('sm_name',s.name);setVal('sm_location',s.location);setVal('sm_contact',s.contact);setVal('sm_website',s.website);
+ setVal('sm_certification',s.certification);setVal('sm_notes',s.notes);
+ document.getElementById('supplierEditorCard').style.display='block';
+}
+
+function closeSupplierEditor(){document.getElementById('supplierEditorCard').style.display='none';editingSupplierMasterId=null}
+
+function saveSupplierMaster(){
+ const d=ensureNormalized();
+ const suppliers=getSuppliers()||[];
+ const name=val('sm_name');
+ if(!name){alert('Factory / Company is required.');return}
+
+ if(editingSupplierMasterId){
+   const su=suppliers.find(v=>String(v.id)===String(editingSupplierMasterId));
+   if(su){
+     su.name=name;su.location=val('sm_location');su.contact=val('sm_contact');
+     su.website=val('sm_website');su.certification=val('sm_certification');su.notes=val('sm_notes');
+   }
+ }else{
+   suppliers.push({
+     id:'S'+Date.now()+Math.floor(Math.random()*1000000),
+     name,location:val('sm_location'),contact:val('sm_contact'),
+     website:val('sm_website'),certification:val('sm_certification'),notes:val('sm_notes')
+   });
+ }
+ saveSuppliers(suppliers);
+ saveData(d);
+ closeSupplierEditor();
+ renderSupplierMaster();
+ refresh();
+ alert('Supplier saved.');
+}
+function deleteSupplierMaster(id){
+ const d=ensureNormalized();
+ const suppliers=getSuppliers()||[];
+ const su=suppliers.find(v=>String(v.id)===String(id));
+ if(!su)return;
+ const linked=d.some(x=>Array.isArray(x.suppliers) &&
+   x.suppliers.some(sp=>String(sp.supplierId)===String(id)));
+ if(linked){
+   alert('This supplier is linked to one or more products. Remove the supplier link from those products first.');
+   return;
+ }
+ if(!confirm('Delete supplier "'+su.name+'"?'))return;
+ saveSuppliers(suppliers.filter(v=>String(v.id)!==String(id)));
+ renderSupplierMaster();
+ refresh();
+}
+function renderSupplierMaster(){
+ const d=ensureNormalized();
+ const q=(document.getElementById('supplierSearch')?.value||'').toLowerCase();
+ const suppliers=(getSuppliers()||[]).filter(s=>
+   (s.name+' '+s.location+' '+s.contact).toLowerCase().includes(q)
+ );
+ document.getElementById('supplierMasterTable').innerHTML=suppliers.length?`
+ <table>
+  <tr><th>Supplier</th><th>Location</th><th>Contact</th><th>Products Supplied</th><th>Actions</th></tr>
+  ${suppliers.map(su=>{
+    const products=d.filter(x=>Array.isArray(x.suppliers)&&x.suppliers.some(sp=>String(sp.supplierId)===String(su.id)));
+    const productHtml=products.length
+      ? products.map(x=>`<button type="button" class="secondary" style="margin:2px" onclick="viewProduct(${x.id})">${esc(x.product)}${x.model?' — '+esc(x.model):''}</button>`).join('')
+      : '<span class="muted">0 products</span>';
+    return `<tr>
+      <td><b>${esc(su.name)}</b></td>
+      <td>${esc(su.location||'')}</td>
+      <td>${esc(su.contact||'')}</td>
+      <td>${productHtml}</td>
+      <td>
+        <button type="button" onclick="editSupplierMaster('${su.id}')">Edit</button>
+        <button type="button" class="danger" onclick="deleteSupplierMaster('${su.id}')">Delete</button>
+      </td>
+    </tr>`;
+  }).join('')}
+ </table>`:'<p class="muted">No suppliers yet.</p>';
+}
+function renderSavedFiles(x){
+ const photos=x.photoNames||[],docs=x.docNames||[];
+ document.getElementById('savedFiles').innerHTML=
+  '<b>Saved photos:</b> '+(photos.length?photos.map(esc).join(', '):'None')+
+  '<br><b>Saved documents:</b> '+(docs.length?docs.map(esc).join(', '):'None');
+
+ const urls=x.photoUrls||[];
+ const grid=document.getElementById('savedPhotoGrid');
+ grid.innerHTML=urls.length?urls.map(u=>`<img src="${esc(u)}" alt="Product photo" title="${esc(u)}">`).join('')
+   :'<span class="muted">No product photos stored yet.</span>';
+}
+function saveEditedProduct(){
+ const d=data(),x=d.find(a=>a.id===currentProductId);
+ if(!x)return;
+ if(!val('ep_category')||!val('ep_product')){alert('Category and Product Name are required.');return}
+ x.category=val('ep_category');x.product=val('ep_product');x.model=val('ep_model');x.spec=val('ep_spec');
+ x.dimensions=val('ep_dimensions');x.weight=val('ep_weight');x.capacity=val('ep_capacity');x.power=val('ep_power');
+ x.speed=val('ep_speed');x.material=val('ep_material');x.technical=val('ep_technical');
+ x.india=val('ep_india');x.privateLabel=val('ep_privateLabel');x.sample=val('ep_sample');
+ x.lead=val('ep_lead');x.payment=val('ep_payment');x.visited=val('ep_visited');x.notes=val('ep_notes');
+ x.suppliers=editingSuppliers;
+ const first=editingSuppliers[0]||{};
+ const d2=ensureNormalized();
+ const firstMaster=(getSuppliers()||[]).find(v=>String(v.id)===String(first.supplierId))||{};
+ x.india=first.india||'No';x.privateLabel=first.privateLabel||'No';x.sample=first.sample||'No';x.lead=first.lead||'';x.payment=first.payment||'';x.visited=first.visited||'No';x.notes=first.notes||x.notes||'';
+ x.factory=first.factory||'';x.location=first.location||'';x.contact=first.contact||'';x.moq=first.moq||'';
+ x.price=first.price||'';x.supplierCapacity=first.capacity||'';x.certification=first.certification||'';
+ const pf=document.getElementById('ep_photos').files,df=document.getElementById('ep_docs').files;
+ if(pf.length)x.photoNames=[...(x.photoNames||[]),...Array.from(pf).map(f=>f.name)];
+ if(df.length)x.docNames=[...(x.docNames||[]),...Array.from(df).map(f=>f.name)];
+ saveData(d);
+ document.getElementById('ep_photos').value='';document.getElementById('ep_docs').value='';
+ document.getElementById('profileTitle').textContent=x.product;
+ document.getElementById('profileSub').textContent=(x.category||'')+' • Saved successfully';
+ renderSavedFiles(x);renderProducts();refresh();
+ alert('Product changes saved.');
+}
+
+function refresh(){
+ const d=ensureNormalized(),cats=[...new Set(d.map(x=>x.category).filter(Boolean))];
+ document.getElementById('nProducts').textContent=d.length;
+ document.getElementById('nSuppliers').textContent=getSuppliers().length;
+ document.getElementById('nCategories').textContent=cats.length;
+ document.getElementById('nVisits').textContent=d.filter(x=>x.visited==='Yes').length;
+ document.getElementById('catList').innerHTML=cats.length?cats.map(c=>`<div class="item"><h3>${esc(c)}</h3><div>${d.filter(x=>x.category===c).length} product record(s)</div></div>`).join(''):'<p class="muted">Categories will appear after products are added.</p>';
+ if(document.getElementById('productList'))renderProducts();
+
+ if(document.getElementById('supplierMasterTable'))renderSupplierMaster();
+ const visits=d.filter(x=>x.visited==='Yes');
+ document.getElementById('visitList').innerHTML=visits.length?visits.map(x=>`<div class="item"><b>${esc(x.factory||'Factory Visit')}</b> — ${esc(x.product)}<br>${esc(x.location||'')}</div>`).join(''):'<p class="muted">No factory visits recorded yet.</p>';
+}
+
+let detectedImportProducts=[];
+let importedBrochureName='';
+
+function clearBrochureImport(){
+ document.getElementById('brochureFile').value='';
+ document.getElementById('brochureCategory').value='';
+ document.getElementById('importStatus').textContent='';
+ document.getElementById('brochureText').value='';
+ document.getElementById('importReviewCard').style.display='none';
+ document.getElementById('brochureTextCard').style.display='none';
+ detectedImportProducts=[];
+ importedBrochureName='';
+}
+
+function loadScriptOnce(src){
+ return new Promise((resolve,reject)=>{
+   const existing=[...document.scripts].find(x=>x.src===src);
+   if(existing){
+     if(existing.dataset.loaded==='1'){resolve();return;}
+     if(existing.dataset.failed==='1'){reject(new Error('Could not load required browser library.'));return;}
+     existing.addEventListener('load',()=>resolve(),{once:true});
+     existing.addEventListener('error',()=>reject(new Error('Could not load required browser library.')),{once:true});
+     return;
+   }
+   const sc=document.createElement('script');sc.src=src;
+   sc.onload=()=>{sc.dataset.loaded='1';resolve()};
+   sc.onerror=()=>{sc.dataset.failed='1';reject(new Error('Could not load required browser library.'))};
+   document.head.appendChild(sc);
+ });
+}
+
+async function extractBrochureText(file){
+ const ext=file.name.toLowerCase().split('.').pop();
+ if(ext==='txt')return await file.text();
+
+ if(ext==='pdf'){
+   if(!window.pdfjsLib){
+     await loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
+   }
+   if(!window.pdfjsLib)throw new Error('PDF text engine could not be loaded.');
+   const buf=await file.arrayBuffer();
+   const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+   let out=[];
+   for(let i=1;i<=pdf.numPages;i++){
+     const pg=await pdf.getPage(i);
+     const tc=await pg.getTextContent();
+     const lines=[];
+     tc.items.forEach(it=>{const t=(it.str||'').trim();if(t)lines.push(t)});
+     out.push('--- PAGE '+i+' ---\n'+lines.join('\n'));
+   }
+   return out.join('\n');
+ }
+
+ if(['jpg','jpeg','png'].includes(ext)){
+   await loadScriptOnce('https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js');
+   if(!window.Tesseract)throw new Error('OCR engine could not be loaded.');
+   const result=await Tesseract.recognize(file,'eng',{logger:m=>{
+      if(m.status==='recognizing text' && m.progress)document.getElementById('importStatus').textContent='OCR in progress: '+Math.round(m.progress*100)+'%';
+   }});
+   return result.data.text||'';
+ }
+ throw new Error('Unsupported brochure format.');
+}
+
+function parseTechnicalFields(text){
+ const get=(patterns)=>{
+   for(const p of patterns){
+     const m=text.match(p);
+     if(m&&m[1])return m[1].trim();
+   }
+   return '';
+ };
+ return {
+   dimensions:get([/dimensions?\s*[:\-]\s*([^\n]+)/i,/size\s*[:\-]\s*([^\n]+)/i]),
+   weight:get([/weight\s*[:\-]\s*([^\n]+)/i,/net\s*weight\s*[:\-]\s*([^\n]+)/i]),
+   capacity:get([/capacity\s*[:\-]\s*([^\n]+)/i,/output\s*[:\-]\s*([^\n]+)/i]),
+   power:get([/power\s*[:\-]\s*([^\n]+)/i,/motor\s*power\s*[:\-]\s*([^\n]+)/i]),
+   speed:get([/speed\s*[:\-]\s*([^\n]+)/i]),
+   material:get([/material\s*[:\-]\s*([^\n]+)/i])
+ };
+}
+
+function detectProductsFromText(text,defaultCategory){
+ const lines=text.split(/\r?\n/).map(x=>x.replace(/\s+/g,' ').trim()).filter(Boolean);
+ const products=[];
+ const seen=new Set();
+
+ // Strong signals: explicit Product/Model/Item headings, common catalogue separators,
+ // and standalone model-code lines. Each detected block becomes one product record.
+ for(let i=0;i<lines.length;i++){
+   const line=lines[i];
+   let name='',model='',spec='',block='';
+   let m=line.match(/^(?:product|product name|item|machine|model name)\s*[:\-]\s*(.+)$/i);
+   if(m){
+     name=m[1].trim();
+     const next=lines[i+1]||'';
+     const mm=next.match(/^(?:model|model no\.?|model number)\s*[:\-]\s*(.+)$/i);
+     if(mm)model=mm[1].trim();
+     block=lines.slice(i,Math.min(i+12,lines.length)).join('\n');
+   } else if(/^model\s*[:\-]/i.test(line)){
+     model=line.replace(/^model\s*[:\-]\s*/i,'').trim();
+     const prev=lines[i-1]||'';
+     if(prev && !/:$/.test(prev) && prev.length<100)name=prev;
+     block=lines.slice(Math.max(0,i-3),Math.min(i+10,lines.length)).join('\n');
+   } else if(/^[A-Z]{1,6}[-_ ]?\d{2,}[A-Z0-9\-_/]*$/i.test(line) && line.length<60){
+     model=line;
+     const prev=lines[i-1]||'';
+     if(prev && prev.length<100)name=prev;
+     block=lines.slice(Math.max(0,i-2),Math.min(i+10,lines.length)).join('\n');
+   }
+
+   // Avoid obvious non-product headings.
+   if(name && /^(contents|index|about|contact|company|certificate|accessories|specification|technical data)$/i.test(name))name='';
+   if(!name && model)name='Product '+model;
+   if(!name)continue;
+
+   name=name.replace(/^(product name|product|machine|item)\s*[:\-]\s*/i,'').trim();
+   if(name.length<3 || name.length>140)continue;
+
+   const key=(name+'|'+model+'|'+spec).toLowerCase();
+   if(seen.has(key))continue;seen.add(key);
+
+   const tech=parseTechnicalFields(block);
+   products.push({
+     category:defaultCategory||'',
+     product:name,
+     model:model,
+     spec:spec,
+     dimensions:tech.dimensions,weight:tech.weight,capacity:tech.capacity,
+     power:tech.power,speed:tech.speed,material:tech.material,
+     technical:block,
+     sourceBrochure:importedBrochureName
+   });
+ }
+
+ // Fallback: if no strong headings are found, use likely catalogue title lines
+ // immediately followed by a model/code or specification line.
+ if(!products.length){
+   for(let i=0;i<lines.length-1;i++){
+     const a=lines[i],b=lines[i+1];
+     if(a.length>=5 && a.length<=100 &&
+        (/[A-Za-z]/.test(a)) &&
+        (/model|specification|power|capacity|speed|size|weight/i.test(b) || /^[A-Z0-9\-_/]{4,40}$/.test(b))){
+       const tech=parseTechnicalFields(lines.slice(i,Math.min(i+8,lines.length)).join('\n'));
+       products.push({category:defaultCategory||'',product:a,model:/model/i.test(b)?b.replace(/^model\s*[:\-]?\s*/i,''):b,spec:'',
+         dimensions:tech.dimensions,weight:tech.weight,capacity:tech.capacity,power:tech.power,speed:tech.speed,material:tech.material,
+         technical:lines.slice(i,Math.min(i+8,lines.length)).join('\n'),sourceBrochure:importedBrochureName});
+       if(products.length>=100)break;
+     }
+   }
+ }
+ return products.slice(0,100);
+}
+
+function renderDetectedProducts(){
+ const box=document.getElementById('detectedProducts');
+ document.getElementById('detectedCount').textContent=detectedImportProducts.length+' detected';
+ if(!detectedImportProducts.length){
+   box.innerHTML='<p class="muted">No clear product records were detected. Try a brochure with selectable text, or use an image/PDF with readable product names and models.</p>';
+   return;
+ }
+ box.innerHTML=detectedImportProducts.map((x,i)=>`
+ <div class="card" style="background:#fafbfc;border:1px solid #dfe5ee">
+  <div class="row">
+   <label style="display:flex;align-items:center;gap:8px;margin:0">
+    <input type="checkbox" id="imp_sel_${i}" checked style="width:auto"> Import
+   </label>
+   <span class="muted">Record ${i+1}</span>
+  </div>
+  <div class="grid" style="margin-top:10px">
+   <div><label>Category</label><input id="imp_cat_${i}" value="${esc(x.category)}"></div>
+   <div><label>Product Name</label><input id="imp_prod_${i}" value="${esc(x.product)}"></div>
+   <div><label>Brand / Model</label><input id="imp_model_${i}" value="${esc(x.model)}"></div>
+   <div><label>Specification / Version</label><input id="imp_spec_${i}" value="${esc(x.spec)}"></div>
+   <div><label>Capacity</label><input id="imp_cap_${i}" value="${esc(x.capacity)}"></div>
+   <div><label>Power</label><input id="imp_power_${i}" value="${esc(x.power)}"></div>
+   <div><label>Speed</label><input id="imp_speed_${i}" value="${esc(x.speed)}"></div>
+   <div><label>Weight</label><input id="imp_weight_${i}" value="${esc(x.weight)}"></div>
+   <div><label>Dimensions</label><input id="imp_dim_${i}" value="${esc(x.dimensions)}"></div>
+   <div><label>Material</label><input id="imp_mat_${i}" value="${esc(x.material)}"></div>
+  </div>
+ </div>`).join('');
+}
+
+async function analyzeBrochure(){
+ const f=document.getElementById('brochureFile').files[0];
+ if(!f){alert('Please select a brochure first.');return}
+ importedBrochureName=f.name;
+ const cat=val('brochureCategory');
+ const status=document.getElementById('importStatus');
+ status.textContent='Reading brochure...';
+ try{
+   const text=await extractBrochureText(f);
+   document.getElementById('brochureText').value=text;
+   document.getElementById('brochureTextCard').style.display='block';
+   detectedImportProducts=detectProductsFromText(text,cat);
+   renderDetectedProducts();
+   document.getElementById('importReviewCard').style.display='block';
+   status.textContent='Analysis complete. Review the detected products below.';
+ }catch(err){
+   console.error(err);
+   status.textContent='';
+   alert('Could not analyze this file. '+(err.message||'Please try another brochure.'));
+ }
+}
+
+function importDetectedProducts(){
+ const d=data();
+ let added=0,skipped=0;
+ detectedImportProducts=detectedImportProducts.map((x,i)=>{
+   x.category=(document.getElementById('imp_cat_'+i)?.value||x.category).trim();
+   x.product=(document.getElementById('imp_prod_'+i)?.value||x.product).trim();
+   x.model=(document.getElementById('imp_model_'+i)?.value||x.model).trim();
+   x.spec=(document.getElementById('imp_spec_'+i)?.value||x.spec).trim();
+   x.capacity=(document.getElementById('imp_cap_'+i)?.value||x.capacity).trim();
+   x.power=(document.getElementById('imp_power_'+i)?.value||x.power).trim();
+   x.speed=(document.getElementById('imp_speed_'+i)?.value||x.speed).trim();
+   x.weight=(document.getElementById('imp_weight_'+i)?.value||x.weight).trim();
+   x.dimensions=(document.getElementById('imp_dim_'+i)?.value||x.dimensions).trim();
+   x.material=(document.getElementById('imp_mat_'+i)?.value||x.material).trim();
+   return x;
+ }).filter((x,i)=>document.getElementById('imp_sel_'+i)?.checked && x.product);
+
+ detectedImportProducts.forEach(x=>{
+   const duplicate=d.some(a=>
+     (a.product||'').trim().toLowerCase()===(x.product||'').trim().toLowerCase() &&
+     (a.model||'').trim().toLowerCase()===(x.model||'').trim().toLowerCase() &&
+     (a.spec||'').trim().toLowerCase()===(x.spec||'').trim().toLowerCase()
+   );
+   if(duplicate){skipped++;return}
+   d.push({
+     id:Date.now()+Math.floor(Math.random()*100000),
+     category:x.category||'Other',product:x.product,model:x.model,spec:x.spec,
+     dimensions:x.dimensions||'',weight:x.weight||'',capacity:x.capacity||'',power:x.power||'',speed:x.speed||'',material:x.material||'',technical:x.technical||'',
+     factory:'',location:'',contact:'',moq:'',price:'',supplierCapacity:'',certification:'',
+     india:'No',privateLabel:'No',sample:'No',lead:'',payment:'',visited:'No',notes:'',
+     photoNames:[],docNames:[importedBrochureName],
+     suppliers:[]
+   });
+   added++;
+ });
+ saveData(d);
+ refresh();
+ alert(added+' product(s) added to the database.'+(skipped?' '+skipped+' duplicate(s) skipped.':''));
+}
+
+
+let aiReviewResult=null;
+
+function clearAIReview(){
+ document.getElementById('aiBrochureFile').value='';
+ document.getElementById('aiWebsiteUrl').value='';
+ document.getElementById('aiCategoryHint').value='';
+ document.getElementById('aiSupplierHint').value='';
+ document.getElementById('aiStatus').textContent='';
+ ['aiSummaryCard','aiProductsCard','aiCategoryCard','aiFactoryCard'].forEach(id=>document.getElementById(id).style.display='none');
+ aiReviewResult=null;
+}
+
+function aiEsc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+
+async function aiReviewBrochure(){
+ const file=document.getElementById('aiBrochureFile').files[0];
+ const website=(document.getElementById('aiWebsiteUrl').value||'').trim();
+ if(!file && !website){alert('Please upload a catalogue or enter a supplier website link.');return}
+ if(website && !/^https?:\/\/\S+/i.test(website)){alert('Please enter a valid website URL starting with http:// or https://');return}
+
+ const status=document.getElementById('aiStatus');
+ status.textContent='AI is reviewing the supplier information. Please keep this page open.';
+ try{
+   const payload={
+     filename:file?file.name:'',
+     mime_type:file?(file.type||mimeFromName(file.name)):'',
+     data_url:file?await fileToBase64(file):'',
+     website_url:website,
+     category_hint:val('aiCategoryHint'),
+     supplier_hint:val('aiSupplierHint')
+   };
+   const AI_API_URL=(location.protocol==='file:'?'http://127.0.0.1:8000':'')+'/api/ai/review-brochure';
+   const res=await fetch(AI_API_URL,{
+     method:'POST',
+     headers:{'Content-Type':'application/json'},
+     body:JSON.stringify(payload)
+   });
+   const body=await res.json().catch(()=>({}));
+   if(!res.ok)throw new Error(body.error||('AI server returned HTTP '+res.status));
+   aiReviewResult=body;
+   renderAIReview(body);
+   status.textContent='AI review completed. Review the suggested records before importing.';
+ }catch(err){
+   console.error(err);
+   status.textContent='';
+   alert('AI review could not be completed.\n\n'+err.message+'\n\nPlease start the database using START_AI_DATABASE.bat.');
+ }
+}
+
+function fileToBase64(file){
+ return new Promise((resolve,reject)=>{
+   const r=new FileReader();
+   r.onload=()=>resolve(r.result);
+   r.onerror=()=>reject(new Error('Could not read brochure file.'));
+   r.readAsDataURL(file);
+ });
+}
+
+function mimeFromName(name){
+ const n=name.toLowerCase();
+ if(n.endsWith('.pdf'))return 'application/pdf';
+ if(n.endsWith('.png'))return 'image/png';
+ if(n.endsWith('.jpg')||n.endsWith('.jpeg'))return 'image/jpeg';
+ return 'text/plain';
+}
+
+function renderAIReview(r){
+ const summary=r.summary||{};
+ document.getElementById('aiSummaryCard').style.display='block';
+ document.getElementById('aiSummary').innerHTML=
+  `<div class="grid">
+    <div><b>Brochure:</b><br>${aiEsc(r.brochure_name||'')}</div>
+    <div><b>Products detected:</b><br>${Number(r.products?.length||0)}</div>
+    <div><b>Supplier found:</b><br>${aiEsc(summary.supplier_found||r.supplier?.name||'Not found')}</div>
+    <div><b>Category:</b><br>${aiEsc(summary.primary_category||'Not sure')}</div>
+    <div><b>Website:</b><br>${r.website_url?`<a href="${aiEsc(r.website_url)}" target="_blank" rel="noopener">${aiEsc(r.website_url)}</a>`:'Not provided'}</div>
+  </div>
+  <p><b>AI notes:</b> ${aiEsc(summary.notes||'')}</p>`;
+
+ const products=r.products||[];
+ document.getElementById('aiProductsCard').style.display='block';
+ document.getElementById('aiProductCount').textContent=products.length+' detected';
+ const box=document.getElementById('aiProducts');
+ box.innerHTML=products.length?products.map((x,i)=>`
+ <div class="card" style="background:#fafbfc;border:1px solid #dfe5ee">
+  <div class="row">
+    <label style="display:flex;align-items:center;gap:8px;margin:0">
+      <input type="checkbox" id="ai_sel_${i}" checked style="width:auto"> Import
+    </label>
+    <span class="pill">${aiEsc(x.confidence||'review')}</span>
+    <span class="muted">Product ${i+1}</span>
+  </div>
+  <div class="grid" style="margin-top:10px">
+    <div><label>Category</label><input id="ai_cat_${i}" value="${aiEsc(x.category||'')}"></div>
+    <div><label>Product Name</label><input id="ai_product_${i}" value="${aiEsc(x.product_name||'')}"></div>
+    <div><label>Brand</label><input id="ai_brand_${i}" value="${aiEsc(x.brand||'')}"></div>
+    <div><label>Model</label><input id="ai_model_${i}" value="${aiEsc(x.model||'')}"></div>
+    <div><label>Specification / Version</label><input id="ai_spec_${i}" value="${aiEsc(x.specification||'')}"></div>
+    <div><label>Material</label><input id="ai_material_${i}" value="${aiEsc(x.material||'')}"></div>
+    <div><label>Capacity</label><input id="ai_capacity_${i}" value="${aiEsc(x.capacity||'')}"></div>
+    <div><label>Power</label><input id="ai_power_${i}" value="${aiEsc(x.power||'')}"></div>
+    <div><label>Speed</label><input id="ai_speed_${i}" value="${aiEsc(x.speed||'')}"></div>
+    <div><label>Weight</label><input id="ai_weight_${i}" value="${aiEsc(x.weight||'')}"></div>
+    <div><label>Dimensions</label><input id="ai_dimensions_${i}" value="${aiEsc(x.dimensions||'')}"></div>
+    <div style="grid-column:1/-1"><label>Technical Data</label><textarea id="ai_technical_${i}" rows="4">${aiEsc(x.technical_data||'')}</textarea></div>
+    <div style="grid-column:1/-1"><label>AI Product Review</label><textarea id="ai_review_${i}" rows="3">${aiEsc(x.review_notes||'')}</textarea></div>
+    <div style="grid-column:1/-1"><label>Source Page / Website</label><input id="ai_source_${i}" value="${aiEsc(x.source_url||'')}"></div>
+  </div>
+  ${Array.isArray(x.photos)&&x.photos.length?`<div style="margin-top:10px"><b>Auto-attached product photo(s):</b><div class="photo-grid" style="margin-top:8px">${x.photos.map(u=>`<img src="${aiEsc(u)}" alt="Product photo" style="height:130px;object-fit:contain;background:#fff">`).join('')}</div></div>`:
+  '<div class="muted" style="margin-top:10px">No separate product photo was extracted from the catalogue pages for this record.</div>'}
+ </div>`).join(''):'<p class="muted">No product records were detected.</p>';
+
+ const cats=r.categories||[];
+ document.getElementById('aiCategoryCard').style.display=cats.length?'block':'none';
+ document.getElementById('aiCategories').innerHTML=cats.length?cats.map(c=>
+  `<div class="item"><b>${aiEsc(c.name||'')}</b><br><span class="muted">${aiEsc(c.reason||'')}</span></div>`
+ ).join(''):'';
+
+ const sp=r.supplier||{};
+ if(sp.name||sp.location||sp.website){
+   document.getElementById('aiFactoryCard').style.display='block';
+   document.getElementById('aiFactoryInfo').innerHTML=
+    `<div class="grid">
+      <div><b>Company:</b><br>${aiEsc(sp.name||'')}</div>
+      <div><b>Location:</b><br>${aiEsc(sp.location||'')}</div>
+      <div><b>Website:</b><br>${aiEsc(sp.website||'')}</div>
+      <div><b>Contact:</b><br>${aiEsc(sp.contact||'')}</div>
+    </div>`;
+ }else document.getElementById('aiFactoryCard').style.display='none';
+}
+
+function findOrCreateSupplierId(sp){
+ const d=ensureNormalized();
+ const name=(sp?.name||'').trim(),loc=(sp?.location||'').trim(),contact=(sp?.contact||'').trim();
+ let su=(getSuppliers()||[]).find(x=>(x.name||'').toLowerCase()===name.toLowerCase() && (x.location||'').toLowerCase()===loc.toLowerCase());
+ if(!su){
+  su={id:'S'+Date.now()+Math.floor(Math.random()*1000000),name,location:loc,contact,website:sp?.website||'',certification:'',notes:''};
+  suppliers.push(su);saveData(d);
+ }
+ return su.id;
+}
+
+function importAIProducts(){
+ if(!aiReviewResult||!aiReviewResult.products?.length){alert('No AI review records available.');return}
+ const d=data(), products=aiReviewResult.products;
+ let added=0, skipped=0;
+ products.forEach((x,i)=>{
+   if(!document.getElementById('ai_sel_'+i)?.checked)return;
+   const rec={
+    id:Date.now()+Math.floor(Math.random()*1000000)+i,
+    category:(document.getElementById('ai_cat_'+i)?.value||x.category||'Other').trim(),
+    product:(document.getElementById('ai_product_'+i)?.value||x.product_name||'').trim(),
+    model:(document.getElementById('ai_model_'+i)?.value||x.model||'').trim(),
+    spec:(document.getElementById('ai_spec_'+i)?.value||x.specification||'').trim(),
+    dimensions:(document.getElementById('ai_dimensions_'+i)?.value||x.dimensions||'').trim(),
+    weight:(document.getElementById('ai_weight_'+i)?.value||x.weight||'').trim(),
+    capacity:(document.getElementById('ai_capacity_'+i)?.value||x.capacity||'').trim(),
+    power:(document.getElementById('ai_power_'+i)?.value||x.power||'').trim(),
+    speed:(document.getElementById('ai_speed_'+i)?.value||x.speed||'').trim(),
+    material:(document.getElementById('ai_material_'+i)?.value||x.material||'').trim(),
+    technical:(document.getElementById('ai_technical_'+i)?.value||x.technical_data||'').trim(),
+    sourceWebsite:(document.getElementById('ai_source_'+i)?.value||x.source_url||aiReviewResult.website_url||'').trim(),
+    factory:aiReviewResult.supplier?.name||'',location:aiReviewResult.supplier?.location||'',
+    contact:aiReviewResult.supplier?.contact||'',moq:'',price:'',supplierCapacity:'',certification:'',
+    india:'No',privateLabel:'No',sample:'No',lead:'',payment:'',visited:'No',
+    notes:(document.getElementById('ai_review_'+i)?.value||x.review_notes||'').trim(),
+    photoNames:(x.photos||[]).map(u=>u.split('/').pop()),photoUrls:(x.photos||[]),docNames:[...(aiReviewResult.brochure_name?[aiReviewResult.brochure_name]:[]),...(aiReviewResult.website_url?[aiReviewResult.website_url]:[])],sourceWebsite:aiReviewResult.website_url||'',
+    suppliers:aiReviewResult.supplier?.name?[{
+      supplierId:findOrCreateSupplierId(aiReviewResult.supplier),
+      moq:'',price:'',capacity:'',certification:'',
+      lead:'',payment:'',sample:'No',privateLabel:'No',india:'No',visited:'No',notes:'AI-imported supplier link'
+    }]:[]
+   };
+   if(!rec.product){return}
+   const dup=d.some(a=>
+     (a.product||'').toLowerCase()===rec.product.toLowerCase() &&
+     (a.model||'').toLowerCase()===rec.model.toLowerCase() &&
+     (a.spec||'').toLowerCase()===rec.spec.toLowerCase()
+   );
+   if(dup){skipped++;return}
+   d.push(rec);added++;
+ });
+ saveData(d);refresh();
+ alert(added+' AI-reviewed product(s) added.'+(skipped?' '+skipped+' duplicate(s) skipped.':''));
+}
+
+
+refresh();
+</script>
+</body>
+</html>

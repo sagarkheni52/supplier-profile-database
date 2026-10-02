@@ -1,0 +1,5 @@
+Flask>=3.0,<4
+gunicorn>=23,<24
+PyMuPDF>=1.24,<2
+Pillow>=10,<12
+beautifulsoup4>=4.12,<5
