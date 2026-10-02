@@ -1061,7 +1061,7 @@ function renderAIReview(r){
     <div style="grid-column:1/-1"><label>AI Product Review</label><textarea id="ai_review_${i}" rows="3">${aiEsc(x.review_notes||'')}</textarea></div>
     <div style="grid-column:1/-1"><label>Source Page / Website</label><input id="ai_source_${i}" value="${aiEsc(x.source_url||'')}"></div>
   </div>
-  ${Array.isArray(x.photos)&&x.photos.length?`<div style="margin-top:10px"><b>Auto-attached product photo(s):</b><div class="photo-grid" style="margin-top:8px">${x.photos.map(u=>`<img src="${aiEsc(u)}" alt="Product photo" style="height:130px;object-fit:contain;background:#fff">`).join('')}</div></div>`:
+  ${Array.isArray(x.photos)&&x.photos.length?`<div style="margin-top:10px"><b>Auto-attached catalogue photo(s):</b><div class="photo-grid" style="margin-top:8px">${x.photos.map(u=>`<img src="${aiEsc(u)}" alt="Product photo" style="height:130px;object-fit:contain;background:#fff">`).join('')}</div></div>`:
   '<div class="muted" style="margin-top:10px">No separate product photo was extracted from the catalogue pages for this record.</div>'}
  </div>`).join(''):'<p class="muted">No product records were detected.</p>';
 

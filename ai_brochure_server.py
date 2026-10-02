@@ -401,6 +401,73 @@ def _visual_response(content):
     if not out:raise RuntimeError("AI returned no visual brochure analysis.")
     return json.loads(out)
 
+
+def _extract_page_photo_assets(doc, page_no, brochure_hash):
+    """Save meaningful embedded PDF images for a page and return (path, normalized_rect, area)."""
+    if fitz is None or Image is None or BytesIO is None:
+        return []
+    page=doc[page_no-1]
+    assets=[]
+    seen=set()
+    try:
+        image_infos=page.get_images(full=True)
+    except Exception:
+        image_infos=[]
+
+    for img in image_infos:
+        xref=img[0]
+        try:
+            raw_info=doc.extract_image(xref)
+            raw=raw_info.get("image")
+            if not raw: continue
+            im=Image.open(BytesIO(raw)).convert("RGB")
+            w,h=im.size
+            if w<160 or h<110 or w*h<35000: continue
+            ratio=max(w/h,h/w)
+            if ratio>8: continue
+            digest=hashlib.sha1(raw).hexdigest()
+            if digest in seen: continue
+            seen.add(digest)
+
+            rects=[]
+            try:
+                rects=page.get_image_rects(xref)
+            except Exception:
+                rects=[]
+
+            for ri,rect in enumerate(rects or [page.rect]):
+                fn=f"{brochure_hash}_page{page_no:03d}_img{len(assets)+1:02d}_{digest[:8]}.jpg"
+                rel=f"product_photos/{fn}"
+                outdir=ROOT/"product_photos";outdir.mkdir(exist_ok=True)
+                im.save(ROOT/rel,"JPEG",quality=88,optimize=True)
+                nr=(
+                    max(0,min(1,rect.x0/page.rect.width)),
+                    max(0,min(1,rect.y0/page.rect.height)),
+                    max(0,min(1,rect.x1/page.rect.width)),
+                    max(0,min(1,rect.y1/page.rect.height))
+                )
+                area=max(0,(nr[2]-nr[0])*(nr[3]-nr[1]))
+                assets.append({"url":rel,"box":nr,"area":area})
+                if len(assets)>=12: break
+        except Exception:
+            continue
+
+    # If the PDF has no embedded photo, save a page image so there is still a
+    # visual source attached to the product. This is labeled as a page image later.
+    if not assets:
+        try:
+            pix=page.get_pixmap(matrix=fitz.Matrix(1.5,1.5),alpha=False)
+            raw=pix.tobytes("jpeg",jpg_quality=82)
+            digest=hashlib.sha1(raw).hexdigest()
+            fn=f"{brochure_hash}_page{page_no:03d}_fullpage_{digest[:8]}.jpg"
+            rel=f"product_photos/{fn}"
+            outdir=ROOT/"product_photos";outdir.mkdir(exist_ok=True)
+            (ROOT/rel).write_bytes(raw)
+            assets.append({"url":rel,"box":(0,0,1,1),"area":1.0,"is_page":True})
+        except Exception:
+            pass
+    return sorted(assets,key=lambda a:a.get("area",0),reverse=True)
+
 def visual_review_pdf(pdf_bytes, filename, category_hint="", supplier_hint=""):
     if fitz is None or Image is None or BytesIO is None:
         raise RuntimeError("PDF visual processing dependencies are missing.")
@@ -409,10 +476,13 @@ def visual_review_pdf(pdf_bytes, filename, category_hint="", supplier_hint=""):
     max_pages=min(len(doc),int(os.environ.get("MAX_PDF_PAGES","80")))
     if max_pages==0:raise RuntimeError("The PDF contains no readable pages.")
 
+    brochure_hash=hashlib.sha1(pdf_bytes).hexdigest()[:12]
     pages_meta=[]
+    page_assets={}
     for pn in range(1,max_pages+1):
         pg=doc[pn-1]
         im,raw=_render_pdf_page(pg)
+        page_assets[pn]=_extract_page_photo_assets(doc,pn,brochure_hash if 'brochure_hash' in locals() else hashlib.sha1(pdf_bytes).hexdigest()[:12])
         text=""
         try:
             tc=pg.get_text("text")
@@ -421,7 +491,6 @@ def visual_review_pdf(pdf_bytes, filename, category_hint="", supplier_hint=""):
             pass
         pages_meta.append((pn,im,raw,text))
 
-    brochure_hash=hashlib.sha1(pdf_bytes).hexdigest()[:12]
     combined=[]
     supplier={}
     categories={}
@@ -440,7 +509,7 @@ For EACH distinct product/model/specification:
 - identify the PRODUCT PHOTO region(s) belonging to that product using normalized coordinates 0..1, where (0,0) is the top-left of the full page image and (1,1) is bottom-right;
 - do not use coordinates for company logos, decorations, icons or unrelated photos;
 - when a page shows multiple products, assign each photo to the correct product as carefully as possible;
-- if a product has no distinct photo, leave photo_boxes empty;
+- if a product has a visible product photo anywhere in its assigned page, you MUST return at least one photo_box for that product;
 - read small specification tables carefully and preserve units.
 """
         if category_hint: instruction+="\nCategory hint: "+category_hint
@@ -502,20 +571,65 @@ For EACH distinct product/model/specification:
             q["source_pages"]=list(dict.fromkeys(prod.get("source_pages") or []))
             merged.append(q);index[key]=len(merged)-1
 
-    # Attach product photos by cropping exactly the AI-identified regions.
+    # Attach product photos:
+    # 1) AI-identified photo regions (most accurate).
+    # 2) Embedded catalogue images from the product's source pages.
+    # 3) Full page image as a guaranteed visual fallback.
+    page_product_indices={}
+    for idx,prod in enumerate(merged):
+        for pn in prod.get("source_pages",[]):
+            page_product_indices.setdefault(int(pn),[]).append(idx)
+
     for pi,prod in enumerate(merged,1):
         photo_paths=[]
         seen=set()
+
+        # First priority: AI boxes.
         for pn in prod.get("source_pages",[]):
             if not (1<=pn<=len(doc)):continue
             page_im=pages_meta[pn-1][1]
-            # Use only photo boxes returned for this product, and first 6 distinct images.
-            for bi,box in enumerate(prod.get("photo_boxes") or [],1):
+            for box in (prod.get("photo_boxes") or []):
                 rel=_save_photo_crop(page_im,box,brochure_hash,pi,len(photo_paths)+1)
                 if rel and rel not in seen:
                     seen.add(rel);photo_paths.append(rel)
                 if len(photo_paths)>=6:break
             if len(photo_paths)>=6:break
+
+        # Second priority: actual embedded catalogue images.
+        if len(photo_paths)<6:
+            for pn in prod.get("source_pages",[]):
+                assets=page_assets.get(int(pn),[])
+                same_page_products=page_product_indices.get(int(pn),[])
+                try: my_order=same_page_products.index(merged.index(prod))
+                except Exception: my_order=0
+
+                # If a page has multiple products, use a different image for each product
+                # where possible. Otherwise attach the best few images from the page.
+                chosen=[]
+                if len(same_page_products)>1 and assets:
+                    if my_order < len(assets):
+                        chosen=[assets[my_order]]
+                    else:
+                        chosen=[assets[0]]
+                else:
+                    chosen=assets[:3]
+
+                for asset in chosen:
+                    url=asset["url"]
+                    if url not in seen:
+                        seen.add(url);photo_paths.append(url)
+                    if len(photo_paths)>=6:break
+                if len(photo_paths)>=6:break
+
+        # Third priority: page snapshot if absolutely necessary.
+        if not photo_paths:
+            for pn in prod.get("source_pages",[]):
+                assets=page_assets.get(int(pn),[])
+                if assets:
+                    url=assets[0]["url"]
+                    photo_paths.append(url)
+                    break
+
         prod["photos"]=photo_paths
         prod.pop("photo_boxes",None)
 

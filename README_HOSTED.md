@@ -30,3 +30,6 @@ Never put the OpenAI API key into the HTML. Keep it server-side.
 
 
 Website-only AI review uses OpenAI's hosted web_search tool, so a supplier site that blocks direct server crawling can still be reviewed when public pages are searchable.
+
+
+PHOTO IMPORT: PDF catalogue pages are visually analyzed. The system first uses AI photo regions, then falls back to embedded PDF images, and finally to a rendered page image so a visual is still attached when extraction is possible.
