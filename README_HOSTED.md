@@ -27,3 +27,6 @@ AI Review accepts:
 - Catalogue + Website
 
 Never put the OpenAI API key into the HTML. Keep it server-side.
+
+
+Website-only AI review uses OpenAI's hosted web_search tool, so a supplier site that blocks direct server crawling can still be reviewed when public pages are searchable.

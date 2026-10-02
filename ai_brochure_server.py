@@ -26,7 +26,7 @@ except ImportError:
 ROOT=Path(__file__).resolve().parent
 PORT=int(os.environ.get("AI_DB_PORT","8000"))
 OPENAI_API_KEY=os.environ.get("OPENAI_API_KEY","").strip()
-OPENAI_MODEL=os.environ.get("OPENAI_MODEL","gpt-5.1").strip()
+OPENAI_MODEL=os.environ.get("OPENAI_MODEL","gpt-5.5").strip()
 
 SCHEMA={
   "type":"object",
@@ -259,6 +259,286 @@ def fetch_website_content(start_url, max_pages=12):
     return pages
 
 
+VISUAL_PAGE_SCHEMA={
+  "type":"object","additionalProperties":False,
+  "properties":{
+    "supplier":{
+      "type":"object","additionalProperties":False,
+      "properties":{
+        "name":{"type":"string"},"location":{"type":"string"},"contact":{"type":"string"},"website":{"type":"string"}
+      },
+      "required":["name","location","contact","website"]
+    },
+    "categories":{
+      "type":"array",
+      "items":{
+        "type":"object","additionalProperties":False,
+        "properties":{"name":{"type":"string"},"reason":{"type":"string"}},
+        "required":["name","reason"]
+      }
+    },
+    "pages":{
+      "type":"array",
+      "items":{
+        "type":"object","additionalProperties":False,
+        "properties":{
+          "page_number":{"type":"integer"},
+          "products":{
+            "type":"array",
+            "items":{
+              "type":"object","additionalProperties":False,
+              "properties":{
+                "product_name":{"type":"string"},
+                "brand":{"type":"string"},
+                "model":{"type":"string"},
+                "specification":{"type":"string"},
+                "category":{"type":"string"},
+                "material":{"type":"string"},
+                "capacity":{"type":"string"},
+                "power":{"type":"string"},
+                "speed":{"type":"string"},
+                "weight":{"type":"string"},
+                "dimensions":{"type":"string"},
+                "technical_data":{"type":"string"},
+                "review_notes":{"type":"string"},
+                "confidence":{"type":"string"},
+                "photo_boxes":{
+                  "type":"array",
+                  "items":{
+                    "type":"object","additionalProperties":False,
+                    "properties":{
+                      "x1":{"type":"number"},"y1":{"type":"number"},
+                      "x2":{"type":"number"},"y2":{"type":"number"}
+                    },
+                    "required":["x1","y1","x2","y2"]
+                  }
+                }
+              },
+              "required":["product_name","brand","model","specification","category","material","capacity","power","speed","weight","dimensions","technical_data","review_notes","confidence","photo_boxes"]
+            }
+          }
+        },
+        "required":["page_number","products"]
+      }
+    }
+  },
+  "required":["supplier","categories","pages"]
+}
+
+def _normalize_key(v):
+    return re.sub(r"[^a-z0-9]+"," ",str(v or "").lower()).strip()
+
+def _merge_text(a,b):
+    a=(a or "").strip(); b=(b or "").strip()
+    if not a:return b
+    if not b:return a
+    if _normalize_key(a)==_normalize_key(b):return a
+    # Keep distinct useful values without creating huge duplicates.
+    return a if len(a)>=len(b) else b
+
+def _render_pdf_page(page, max_width=1900):
+    rect=page.rect
+    scale=max_width/rect.width if rect.width else 1.0
+    scale=min(scale,2.2)
+    pix=page.get_pixmap(matrix=fitz.Matrix(scale,scale),alpha=False)
+    raw=pix.tobytes("jpeg",jpg_quality=82)
+    im=Image.open(BytesIO(raw)).convert("RGB")
+    return im, raw
+
+def _save_photo_crop(im, box, brochure_hash, product_index, photo_index):
+    w,h=im.size
+    try:
+        x1=max(0,min(1,float(box.get("x1",0))))
+        y1=max(0,min(1,float(box.get("y1",0))))
+        x2=max(0,min(1,float(box.get("x2",1))))
+        y2=max(0,min(1,float(box.get("y2",1))))
+    except Exception:
+        return None
+    if x2<=x1 or y2<=y1:return None
+    # Pad slightly so product photo isn't cut at edges.
+    pad_x=(x2-x1)*0.025; pad_y=(y2-y1)*0.025
+    x1=max(0,x1-pad_x); y1=max(0,y1-pad_y); x2=min(1,x2+pad_x); y2=min(1,y2+pad_y)
+    left=int(x1*w); top=int(y1*h); right=int(x2*w); bottom=int(y2*h)
+    if right-left<120 or bottom-top<90:return None
+    crop=im.crop((left,top,right,bottom))
+    # Avoid saving a near-full page as a "photo"; it is still useful as fallback but name it page.
+    if (right-left)*(bottom-top)>0.94*w*h:
+        crop=im
+    outdir=ROOT/"product_photos";outdir.mkdir(exist_ok=True)
+    fn=f"{brochure_hash}_p{product_index:03d}_photo{photo_index:02d}.jpg"
+    rel=f"product_photos/{fn}"
+    crop.save(ROOT/rel,"JPEG",quality=88,optimize=True)
+    return rel
+
+def _visual_response(content):
+    body={
+      "model":OPENAI_MODEL,
+      "input":[{"role":"user","content":content}],
+      "text":{
+        "format":{
+          "type":"json_schema",
+          "name":"visual_brochure_pages",
+          "strict":True,
+          "schema":VISUAL_PAGE_SCHEMA
+        }
+      }
+    }
+    req=Request(
+      "https://api.openai.com/v1/responses",
+      data=json.dumps(body).encode("utf-8"),
+      headers={"Authorization":"Bearer "+OPENAI_API_KEY,"Content-Type":"application/json"},
+      method="POST"
+    )
+    with urlopen(req,timeout=180) as r:
+        resp=json.loads(r.read().decode("utf-8"))
+    out=resp.get("output_text","").strip()
+    if not out:
+        parts=[]
+        for item in resp.get("output",[]):
+            for c in item.get("content",[]):
+                if c.get("type")=="output_text":parts.append(c.get("text",""))
+        out="".join(parts).strip()
+    if not out:raise RuntimeError("AI returned no visual brochure analysis.")
+    return json.loads(out)
+
+def visual_review_pdf(pdf_bytes, filename, category_hint="", supplier_hint=""):
+    if fitz is None or Image is None or BytesIO is None:
+        raise RuntimeError("PDF visual processing dependencies are missing.")
+
+    doc=fitz.open(stream=pdf_bytes,filetype="pdf")
+    max_pages=min(len(doc),int(os.environ.get("MAX_PDF_PAGES","80")))
+    if max_pages==0:raise RuntimeError("The PDF contains no readable pages.")
+
+    pages_meta=[]
+    for pn in range(1,max_pages+1):
+        pg=doc[pn-1]
+        im,raw=_render_pdf_page(pg)
+        text=""
+        try:
+            tc=pg.get_text("text")
+            text=" ".join(tc.split())[:7000]
+        except Exception:
+            pass
+        pages_meta.append((pn,im,raw,text))
+
+    brochure_hash=hashlib.sha1(pdf_bytes).hexdigest()[:12]
+    combined=[]
+    supplier={}
+    categories={}
+    # Four pages per vision call is a practical balance for catalogue accuracy and payload.
+    for batch_start in range(0,len(pages_meta),4):
+        batch=pages_meta[batch_start:batch_start+4]
+        instruction="""You are reviewing pages of a supplier's product catalogue for a product database.
+
+Analyze EVERY product/model visible on these pages. This is a visual catalogue task, not just a text extraction task.
+
+For EACH distinct product/model/specification:
+- create a separate product record when the model/specification/material is materially different;
+- capture ALL technical values you can actually read from the page, including table rows, options and specifications;
+- never invent missing values;
+- identify the exact page number;
+- identify the PRODUCT PHOTO region(s) belonging to that product using normalized coordinates 0..1, where (0,0) is the top-left of the full page image and (1,1) is bottom-right;
+- do not use coordinates for company logos, decorations, icons or unrelated photos;
+- when a page shows multiple products, assign each photo to the correct product as carefully as possible;
+- if a product has no distinct photo, leave photo_boxes empty;
+- read small specification tables carefully and preserve units.
+"""
+        if category_hint: instruction+="\nCategory hint: "+category_hint
+        if supplier_hint: instruction+="\nSupplier hint: "+supplier_hint
+
+        content=[{"type":"input_text","text":instruction}]
+        for pn,im,raw,txt in batch:
+            # Tell the model the page number immediately before each image.
+            content.append({"type":"input_text","text":f"CATALOGUE PAGE {pn}." + (f" Visible text excerpt: {txt}" if txt else "")})
+            b64=base64.b64encode(raw).decode("ascii")
+            content.append({"type":"input_image","image_url":"data:image/jpeg;base64,"+b64,"detail":"high"})
+
+        try:
+            r=_visual_response(content)
+        except Exception as e:
+            # Retry once with just the page images if a long text excerpt caused a request problem.
+            retry_content=[{"type":"input_text","text":instruction}]
+            for pn,im,raw,txt in batch:
+                retry_content.append({"type":"input_text","text":f"CATALOGUE PAGE {pn}."})
+                b64=base64.b64encode(raw).decode("ascii")
+                retry_content.append({"type":"input_image","image_url":"data:image/jpeg;base64,"+b64,"detail":"high"})
+            r=_visual_response(retry_content)
+
+        sp=r.get("supplier") or {}
+        for k,v in sp.items():
+            if v and not supplier.get(k): supplier[k]=v
+        for c in r.get("categories",[]):
+            if c.get("name"): categories[_normalize_key(c["name"])]=c
+
+        # Force correct page mapping from the batch, regardless of model slips.
+        valid={x[0] for x in batch}
+        for pg in r.get("pages",[]):
+            pn=int(pg.get("page_number") or 0)
+            if pn not in valid: continue
+            for prod in pg.get("products",[]):
+                prod["source_pages"]=[pn]
+                prod["photos"]=[]
+                combined.append(prod)
+
+    # Merge duplicates across pages while retaining all source pages/photos.
+    merged=[]
+    index={}
+    for prod in combined:
+        name=_normalize_key(prod.get("product_name"))
+        model=_normalize_key(prod.get("model"))
+        spec=_normalize_key(prod.get("specification"))
+        if not name: continue
+        key="|".join([model,name,spec]) if model else "|".join([name,spec])
+        if key in index:
+            dst=merged[index[key]]
+            for fld in ["brand","model","specification","category","material","capacity","power","speed","weight","dimensions","technical_data","review_notes"]:
+                dst[fld]=_merge_text(dst.get(fld),prod.get(fld))
+            dst["source_pages"]=sorted(set((dst.get("source_pages") or [])+(prod.get("source_pages") or [])))
+            dst["photo_boxes"]=(dst.get("photo_boxes") or [])+(prod.get("photo_boxes") or [])
+            dst["confidence"]=dst.get("confidence") if dst.get("confidence")=="High" else prod.get("confidence",dst.get("confidence","Medium"))
+        else:
+            q=dict(prod)
+            q["photo_boxes"]=list(prod.get("photo_boxes") or [])
+            q["source_pages"]=list(dict.fromkeys(prod.get("source_pages") or []))
+            merged.append(q);index[key]=len(merged)-1
+
+    # Attach product photos by cropping exactly the AI-identified regions.
+    for pi,prod in enumerate(merged,1):
+        photo_paths=[]
+        seen=set()
+        for pn in prod.get("source_pages",[]):
+            if not (1<=pn<=len(doc)):continue
+            page_im=pages_meta[pn-1][1]
+            # Use only photo boxes returned for this product, and first 6 distinct images.
+            for bi,box in enumerate(prod.get("photo_boxes") or [],1):
+                rel=_save_photo_crop(page_im,box,brochure_hash,pi,len(photo_paths)+1)
+                if rel and rel not in seen:
+                    seen.add(rel);photo_paths.append(rel)
+                if len(photo_paths)>=6:break
+            if len(photo_paths)>=6:break
+        prod["photos"]=photo_paths
+        prod.pop("photo_boxes",None)
+
+    # If no products were found visually but the PDF contains text, make one lower-cost text fallback.
+    if not merged:
+        raise RuntimeError("No clear products were detected in the catalogue pages. Try a higher-quality catalogue PDF.")
+
+    doc.close()
+    return {
+      "brochure_name":filename,
+      "website_url":"",
+      "supplier":supplier,
+      "categories":list(categories.values()),
+      "summary":{
+        "primary_category": next(iter(categories.values())).get("name","") if categories else "",
+        "supplier_found": supplier.get("name",""),
+        "product_count": len(merged),
+        "notes": f"Visual analysis reviewed {max_pages} catalogue page(s). Product photos are cropped from the page regions identified for each product."
+      },
+      "products":merged
+    }
+
+
 def ai_review(payload):
     if not OPENAI_API_KEY:
         raise RuntimeError("OPENAI_API_KEY is not configured on the server.")
@@ -281,13 +561,22 @@ def ai_review(payload):
     website_pages=[]
     website_text=""
     if website_url:
-        website_pages=fetch_website_content(website_url)
-        if not website_pages:
-            raise RuntimeError("Could not read the supplier website. It may block automated access or require JavaScript/login.")
-        website_text="\n\n".join(
-            f"--- WEBSITE PAGE: {pg['url']} ---\nTITLE: {pg['title']}\n{pg['text']}"
-            for pg in website_pages
-        )
+        try:
+            website_pages=fetch_website_content(website_url)
+        except Exception:
+            website_pages=[]
+        if website_pages:
+            website_text="\n\n".join(
+                f"--- WEBSITE PAGE: {pg['url']} ---\nTITLE: {pg['title']}\n{pg['text']}"
+                for pg in website_pages
+            )
+
+    if (mime=="application/pdf" or filename.lower().endswith(".pdf")) and pdf_bytes:
+        # Visual catalogue mode: inspect rendered pages so tables AND product photos are captured.
+        visual=visual_review_pdf(pdf_bytes,filename,hint,supplier_hint)
+        # Website can be combined separately; the visual catalogue remains the source of product photos.
+        visual["website_url"]=website_url
+        return visual
 
     if not data_url:
         file_content=None
@@ -337,8 +626,10 @@ Rules:
         content.append(file_content)
     elif raw:
         content.append({"type":"input_text","text":"BROCHURE TEXT:\n"+raw})
+    if website_url:
+        content.append({"type":"input_text","text":"SUPPLIER WEBSITE URL TO REVIEW: "+website_url+"\nUse the hosted web_search tool to inspect this site's public product pages. Search this domain and prioritize product/machine/catalogue pages."})
     if website_text:
-        content.append({"type":"input_text","text":"SUPPLIER WEBSITE CONTENT:\n"+website_text})
+        content.append({"type":"input_text","text":"SUPPLIER WEBSITE CONTENT (optional direct-fetch copy):\n"+website_text})
 
     body={
       "model":OPENAI_MODEL,
@@ -352,6 +643,10 @@ Rules:
         }
       }
     }
+    if website_url:
+        body["tools"]=[{"type":"web_search","search_context_size":"high"}]
+        body["tool_choice"]="required"
+        body["include"]=["web_search_call.action.sources"]
 
     req=Request(
       "https://api.openai.com/v1/responses",

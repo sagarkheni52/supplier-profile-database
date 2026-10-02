@@ -998,7 +998,7 @@ async function aiReviewBrochure(){
  }catch(err){
    console.error(err);
    status.textContent='';
-   alert('AI review could not be completed.\n\n'+err.message+'\n\nPlease start the database using START_AI_DATABASE.bat.');
+   alert('AI review could not be completed.\n\n'+err.message+'\n\nCheck your Render deployment and OPENAI_API_KEY setting.');
  }
 }
 
